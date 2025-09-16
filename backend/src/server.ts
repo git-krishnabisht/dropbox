@@ -1,15 +1,76 @@
 import http from "http";
-import express from "express";
+import cors from "cors";
+import express, { Request, Response } from "express";
 import logger from "./utils/logger.js";
+import { auth_router } from "./routes/auth.routes.js";
+import { file_router } from "./routes/files.routes.js";
+import { pollS3Events } from "./utils/poll-sqs-events.util.js";
 
-const app = express()
+import "./config/env.config.js";
+
+const app = express();
+app.use(express.json());
+app.use(
+  cors({
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+    origin: ["http://localhost:5173", "http://localhost:4173"],
+  })
+);
 const server = http.createServer(app);
 const PORT = 50136;
 
-app.get("/", (_, res) => {
-  res.send({ "server" : "running" });
+app.use((req: Request, res: Response, next) => {
+  logger.info("Incoming request", {
+    method: req.method,
+    url: req.url,
+    ip: req.ip,
+    userAgent: req.get("User-Agent"),
+  });
+  next();
+});
+
+app.use("/api/auth", auth_router);
+app.use("/api/files", file_router);
+app.get("/api/health", (_: Request, res: Response) => {
+  logger.info("Health check requested");
+  res.send({ server: "running", timestamp: new Date().toISOString() });
+});
+
+app.use((error: Error, req: Request, res: Response, next: any) => {
+  logger.error("Unhandled error", {
+    error: error.message,
+    stack: error.stack,
+    url: req.url,
+    method: req.method,
+  });
+  res.status(500).json({ error: "Internal server error" });
 });
 
 server.listen(PORT, () => {
-  logger.info("Server is started on PORT: %d", PORT);
+  logger.info("Server started successfully", {
+    port: PORT,
+    environment: process.env.NODE_ENV || "development",
+  });
+  
+  pollS3Events().catch((error) => {
+    logger.error("SQS polling failed to start", { error: error.message });
+  });
+});
+
+process.on("SIGTERM", () => {
+  logger.info("SIGTERM received, shutting down gracefully");
+  server.close(() => {
+    logger.info("Server closed");
+    process.exit(0);
+  });
+});
+
+process.on("SIGINT", () => {
+  logger.info("SIGINT received, shutting down gracefully");
+  server.close(() => {
+    logger.info("Server closed");
+    process.exit(0);
+  });
 });

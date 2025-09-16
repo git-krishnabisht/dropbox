@@ -8,20 +8,38 @@
     "dev": "tsx --watch src/server.ts",
     "start": "node dist/server.js",
     "build": "tsc",
+    "worker": "tsx --watch src/utils/poll-sqs-events.util.ts",
     "clean": "rm -rf dist"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/dotenv": "^6.1.1",
     "@types/express": "^5.0.3",
+    "@types/express-session": "^1.18.2",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.3.3",
+    "@types/passport": "^1.0.17",
     "@types/winston": "^2.4.4",
+    "prisma": "^6.16.2",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.888.0",
+    "@aws-sdk/client-sqs": "^3.888.0",
+    "@aws-sdk/s3-request-presigner": "^3.888.0",
+    "@prisma/client": "^6.16.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
     "express": "^5.1.0",
+    "express-session": "^1.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0",
+    "uuid": "^13.0.0",
     "winston": "^3.17.0"
   }
 }

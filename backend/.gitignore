@@ -154,3 +154,7 @@ dist
 # Temporary folders
 tmp/
 temp/
+
+# Other files
+planning.txt 
+/src/generated/prisma

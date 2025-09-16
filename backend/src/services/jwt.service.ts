@@ -1,0 +1,51 @@
+import jwt from "jsonwebtoken";
+import { jwtPayload } from "../types/jwt.type.js";
+import { config } from "../config/env.config.js";
+import logger from "../utils/logger.js";
+
+export class jwtService {
+  static async assign(payload: jwtPayload) {
+    try {
+      logger.info("Generating JWT token", {
+        userId: payload.userId,
+        email: payload.email,
+      });
+
+      const token = jwt.sign(payload, config.jwt.privateKey, {
+        algorithm: "RS256",
+        expiresIn: "15m",
+      });
+
+      logger.info("JWT token generated successfully", {
+        userId: payload.userId,
+      });
+      return token;
+    } catch (error) {
+      logger.error("Error generating JWT token", {
+        error: error instanceof Error ? error.message : error,
+        stack: error instanceof Error ? error.stack : undefined,
+        userId: payload.userId,
+      });
+      throw error;
+    }
+  }
+
+  static async verify(token: string) {
+    try {
+      logger.info("Verifying JWT token");
+
+      const decoded = jwt.verify(token, config.jwt.publicKey, {
+        algorithms: ["RS256"],
+      });
+
+      logger.info("JWT token verified successfully", { payload: decoded });
+      return decoded;
+    } catch (error) {
+      logger.error("Error verifying JWT token", {
+        error: error instanceof Error ? error.message : error,
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      throw error;
+    }
+  }
+}

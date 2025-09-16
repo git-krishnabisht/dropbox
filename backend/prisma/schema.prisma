@@ -1,0 +1,64 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("CLOUD_DB_URI")
+}
+
+model User {
+  id            Int       @id @default(autoincrement())
+  email         String    @unique
+  name          String?
+  avatar        String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  passwordHash  String?   @map("password_hash")
+
+  // Relations
+  sentMessages     Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
+
+  @@map("users")
+}
+
+model Message {
+  messageId Int       @id @default(autoincrement()) @map("message_id")
+  senderId  Int       @map("sender")
+  receiverId Int      @map("receiver")
+  message   String?
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  sender   User         @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User         @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  attachments Attachment[]
+
+  @@map("messages")
+}
+
+model Attachment {
+  imageId    Int      @id @default(autoincrement()) @map("image_id")
+  messageId  Int      @map("message_id")
+  imageData  Bytes?   @map("image_data")
+  imageType  String?  @map("image_type")
+
+  // Relations
+  message Message @relation(fields: [messageId], references: [messageId], onDelete: Cascade)
+
+  @@map("attachments")
+}
+
+model Metadata {
+  fileId       String   @id @default(uuid())        
+  fileName     String                              
+  mimeType     String                              
+  size         Int?                                
+  s3Key        String   @unique                    
+  status       String   @default("pending")        
+  creationTime DateTime @default(now())            
+
+  @@map("metadata")
+}
+
