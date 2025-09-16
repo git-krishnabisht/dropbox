@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-import logger from "../utils/logger.js";
+import logger from "../utils/logger.util.js";
 
 dotenv.config();
 
@@ -8,6 +8,7 @@ const requiredEnvVars = [
   "AWS_SECRET_ACCESS_KEY",
   "AWS_REGION",
   "S3_BUCKET",
+  "SQS_QUEUE_URL", // Add this
   "PRIVATE_KEY",
   "PUBLIC_KEY",
 ];

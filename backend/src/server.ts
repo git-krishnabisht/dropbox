@@ -1,10 +1,10 @@
 import http from "http";
 import cors from "cors";
 import express, { Request, Response } from "express";
-import logger from "./utils/logger.js";
+import logger from "./utils/logger.util.js";
 import { auth_router } from "./routes/auth.routes.js";
 import { file_router } from "./routes/files.routes.js";
-import { pollS3Events } from "./utils/poll-sqs-events.util.js";
+import { pollS3Events } from "./services/sqs-queue.service.js";
 
 import "./config/env.config.js";
 

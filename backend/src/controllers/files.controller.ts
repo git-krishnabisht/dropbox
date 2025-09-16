@@ -2,7 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import { generateUploadUrl } from "../services/s3.service.js";
 import prisma from "../utils/prisma.util.js";
 import { v4 as uuidv4 } from "uuid";
-import logger from "../utils/logger.js";
+import logger from "../utils/logger.util.js";
 
 export class fileController {
   static async getSignedUrl(req: Request, res: Response, next: NextFunction) {
@@ -25,7 +25,7 @@ export class fileController {
       }
 
       const fileId = uuidv4();
-      const s3Key = `${userId}/${fileId}-${filename}`;
+      const s3Key = `dropbox-test/${userId}/${fileId}-${filename}`;
 
       logger.info("Creating metadata record", {
         fileId,

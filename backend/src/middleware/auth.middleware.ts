@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { jwtService } from "../services/jwt.service.js";
-import logger from "../utils/logger.js";
+import logger from "../utils/logger.util.js";
 
 declare global {
   namespace Express {

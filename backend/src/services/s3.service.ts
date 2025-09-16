@@ -5,7 +5,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { config } from "../config/env.config.js";
-import logger from "../utils/logger.js";
+import logger from "../utils/logger.util.js";
 
 const s3 = new S3Client({
   region: config.aws.region,

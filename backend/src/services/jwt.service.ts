@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 import { jwtPayload } from "../types/jwt.type.js";
 import { config } from "../config/env.config.js";
-import logger from "../utils/logger.js";
+import logger from "../utils/logger.util.js";
 
 export class jwtService {
   static async assign(payload: jwtPayload) {
