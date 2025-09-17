@@ -8,7 +8,7 @@
     "dev": "tsx --watch src/server.ts",
     "start": "node dist/server.js",
     "build": "tsc",
-    "worker": "tsx --watch src/utils/poll-sqs-events.util.ts",
+    "worker": "tsx --watch src/services/sqs-queue.service.ts",
     "clean": "rm -rf dist"
   },
   "keywords": [],

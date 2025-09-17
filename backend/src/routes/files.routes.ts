@@ -6,6 +6,7 @@ const router = Router();
 
 // router.use(authenticateToken);
 
-router.post("/upload-url", fileController.getSignedUrl);
+router.post("/upload-url", fileController.getSignedUploadUrl);
+router.post("/download-url", fileController.getSignedDownloadUrl);
 
 export { router as file_router };

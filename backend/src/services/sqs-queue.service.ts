@@ -64,6 +64,10 @@ function extractS3Records(messageBody: any): any[] {
 function decodeS3Key(rawKey: string): string {
   const plusNormalized = rawKey.replace(/\+/g, "%20");
   try {
+    console.log(
+      "here the s3 Key found is: ",
+      decodeURIComponent(plusNormalized)
+    );
     return decodeURIComponent(plusNormalized);
   } catch {
     logger.warn("Failed to decode S3 key, using raw key", { rawKey });

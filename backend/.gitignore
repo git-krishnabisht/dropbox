@@ -156,5 +156,5 @@ tmp/
 temp/
 
 # Other files
-planning.txt 
+sketches
 /src/generated/prisma
