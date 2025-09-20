@@ -5,6 +5,7 @@ import logger from "./utils/logger.util.js";
 import { auth_router } from "./routes/auth.routes.js";
 import { file_router } from "./routes/files.routes.js";
 import { pollS3Events } from "./workers/sqs-polling.worker.js";
+import { startFileWatcher } from "./workers/file-watcher.worker.js";
 
 import "./config/env.config.js";
 
@@ -57,6 +58,12 @@ server.listen(PORT, () => {
   pollS3Events().catch((error) => {
     logger.error("SQS polling failed to start", { error: error.message });
   });
+
+  try {
+    startFileWatcher();
+  } catch (error: any) {
+    logger.error("File watcher failed to start", { error: error.message });
+  }
 });
 
 process.on("SIGTERM", () => {
