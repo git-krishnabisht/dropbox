@@ -4,7 +4,7 @@ import express, { Request, Response } from "express";
 import logger from "./shared/utils/logger.util.js";
 import { auth_router } from "./domains/auth/auth.routes.js";
 import { file_router } from "./domains/files/files.routs.js";
-import { pollS3Events } from "./workers/sqs-polling.worker.js";
+// import { pollS3Events } from "./workers/sqs-polling.worker.js";
 
 import "./shared/config/env.config.js";
 
@@ -54,9 +54,9 @@ server.listen(PORT, () => {
     environment: process.env.NODE_ENV || "development",
   });
 
-  pollS3Events().catch((error) => {
-    logger.error("SQS polling failed to start", { error: error.message });
-  });
+  // pollS3Events().catch((error) => {
+  //   logger.error("SQS polling failed to start", { error: error.message });
+  // });
 });
 
 process.on("SIGTERM", () => {

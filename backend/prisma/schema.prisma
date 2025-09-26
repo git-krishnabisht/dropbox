@@ -27,12 +27,12 @@ model User {
   passwordHash String     @map("password_hash")
   createdAt    DateTime   @default(now()) @map("created_at")
 
-  files        Metadata[] @relation("UserFiles")
+  files        FileMetadata[] @relation("UserFiles")
 
   @@map("users") 
 }
 
-model Metadata {
+model FileMetadata {
   fileId     String      @id @default(uuid()) @map("file_id")
   fileName   String      @map("file_name")
   mimeType   String      @map("mime_type")
@@ -59,7 +59,7 @@ model Chunk {
   status     ChunkStatus  @default(PENDING)
   createdAt  DateTime     @default(now()) @map("created_at")
 
-  file Metadata @relation(fields: [fileId], references: [fileId])
+  file FileMetadata @relation(fields: [fileId], references: [fileId])
 
   @@map("chunks")
   @@unique([fileId, chunkIndex])
