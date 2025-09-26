@@ -1,11 +1,10 @@
 import { Router } from "express";
 import { fileController } from "./files.controller";
-
-// import { authenticateToken } from "../middleware/auth.middleware.js";
+import { authenticateToken } from "../../shared/middleware/auth.middleware";
 
 const router = Router();
 
-// router.use(authenticateToken);
+router.use(authenticateToken);
 
 router.post("/upload-url", fileController.getSignedUploadUrl);
 router.post("/download-url", fileController.getSignedDownloadUrl);

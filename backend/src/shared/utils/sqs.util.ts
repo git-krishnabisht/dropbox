@@ -6,6 +6,7 @@ import {
 import { config } from "../config/env.config.js";
 import logger from "./logger.util.js";
 import prisma from "./prisma.util.js";
+import { FileStatus } from "@prisma/client";
 
 const queueUrl = config.aws.sqs;
 
@@ -146,7 +147,7 @@ export async function processS3Record(record: any, messageId?: string) {
   });
 
   try {
-    const existing = await prisma.metadata.findUnique({
+    const existing = await prisma.fileMetadata.findUnique({
       where: { s3Key },
     });
 
@@ -155,10 +156,10 @@ export async function processS3Record(record: any, messageId?: string) {
       return;
     }
 
-    const updated = await prisma.metadata.update({
+    const updated = await prisma.fileMetadata.update({
       where: { s3Key },
       data: {
-        status: "complete",
+        status: FileStatus.UPLOADED,
         ...(size && { size: parseInt(size) }),
       },
     });

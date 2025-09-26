@@ -1,11 +1,11 @@
 export interface jwtPayload {
-  userId: string;
   email: string;
+  name: string;
 }
 
 export interface user {
   email: string;
-  name: string;
+  name?: string;
   password: string;
 }
 

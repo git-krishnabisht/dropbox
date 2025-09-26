@@ -4,13 +4,14 @@ import logger from "../../shared/utils/logger.util";
 import bcrypt from "bcrypt";
 import { sts } from "../../shared/types/common.types";
 import { validateAuthBody } from "./auth.validation";
+import { jwtService } from "../../shared/services/jwt.service";
 
 export class authController {
   static async sign_up(req: Request, res: Response) {
     try {
       logger.info("Sign up has started", {
         user: req.body.user,
-        valid_req: true ? req.body?.user : false,
+        valid_req: req.body?.user,
       });
 
       const { user } = req.body;
@@ -50,8 +51,19 @@ export class authController {
           passwordHash: password_hash,
         },
       });
+
+      const token = await jwtService.assign({
+        email: user.email,
+        name: user.name,
+      });
       logger.info("User registered successfully", {
         user: req.body.user.email,
+      });
+      res.cookie("authToken", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 15 * 60 * 1000,
       });
       return res.status(200).json({ status: "User registered successfully" });
     } catch (err) {
@@ -68,7 +80,7 @@ export class authController {
     try {
       logger.info("Sign in has started", {
         user: req.body.user,
-        valid_req: true ? req.body?.user : false,
+        valid_req: req.body?.user,
       });
       const { user: usr } = req.body;
       const user_validate = validateAuthBody(usr, sts.SIGNIN);
@@ -85,7 +97,7 @@ export class authController {
 
       const u = await prisma.user.findUnique({
         where: { email: usr.email },
-        select: { id: true, passwordHash: true },
+        select: { id: true, name: true, email: true, passwordHash: true },
       });
 
       if (!u) {
@@ -98,8 +110,8 @@ export class authController {
         });
       }
 
-      const is_valid = bcrypt.compare(
-        usr.passwordHash,
+      const is_valid = await bcrypt.compare(
+        usr.password,
         u.passwordHash as string
       );
 
@@ -112,10 +124,24 @@ export class authController {
         });
       }
 
+      logger.info("Assigning JWT token", {
+        user: req.body.user.email,
+      });
+      const token = await jwtService.assign({
+        email: u.email,
+        name: u.name as string,
+      });
+
       logger.info("User logged in successfully", {
         user: req.body.user.email,
       });
 
+      res.cookie("authToken", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 15 * 60 * 1000,
+      });
       return res.status(200).json({ status: "User logged in successfully" });
     } catch (err) {
       logger.error("Error logging-in the user", {

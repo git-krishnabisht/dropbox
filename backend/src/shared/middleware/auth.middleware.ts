@@ -8,8 +8,7 @@ export const authenticateToken = async (
   next: NextFunction
 ) => {
   try {
-    const authHeader = req.headers["authorization"];
-    const token = authHeader && authHeader.split(" ")[1];
+    const token = req.cookies?.authToken;
 
     if (!token) {
       logger.warn("Authentication failed: No token provided", {
@@ -20,7 +19,7 @@ export const authenticateToken = async (
     }
 
     const decoded = (await jwtService.verify(token)) as {
-      userId: string;
+      userId: number;
       email: string;
     };
     req.user = decoded;

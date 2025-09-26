@@ -6,17 +6,18 @@ import {
 import prisma from "../../shared/utils/prisma.util.js";
 import { v4 as uuidv4 } from "uuid";
 import logger from "../../shared/utils/logger.util.js";
+import { FileStatus } from "@prisma/client";
 
 export class fileController {
   static async getSignedUploadUrl(req: Request, res: Response) {
     try {
       logger.info("Get signed URL for file upload request received", {
-        filename: req.body.filename,
-        mimeType: req.body.mimeType,
+        fileName: req.body.md.fileName,
+        mimeType: req.body.md.mimeType,
       });
 
-      const { filename, mimeType } = req.body;
-      if (!filename || !mimeType) {
+      const { md } = req.body;
+      if (!md.fileName || !md.mimeType || !md.userId) {
         logger.warn("Missing required fields in get signed URL request", {
           body: req.body,
         });
@@ -26,27 +27,30 @@ export class fileController {
       }
 
       const fileId = uuidv4();
-      const s3Key = `dropbox-test/${fileId}-${filename}`;
+      const s3Key = `dropbox-test/${fileId}-${md.fileName}`;
 
       logger.info("Creating metadata record", {
         fileId,
-        filename,
         s3Key,
       });
 
-      await prisma.metadata.create({
+      await prisma.fileMetadata.create({
         data: {
           fileId,
-          fileName: filename,
-          mimeType: mimeType,
+          fileName: md.fileName,
+          mimeType: md.mimeType,
           size: null,
           s3Key,
-          status: "pending",
+          status: FileStatus.UPLOADING,
+          userId: md.userId,
         },
       });
 
       logger.info("Generating S3 upload URL", { fileId, s3Key });
-      const url = await generateUploadUrl(s3Key as string, mimeType as string);
+      const url = await generateUploadUrl(
+        s3Key as string,
+        md.mimeType as string
+      );
 
       logger.info("Successfully generated upload URL", { fileId, s3Key });
       res.json({ uploadUrl: url, fileId });
@@ -54,7 +58,6 @@ export class fileController {
       logger.error("Error generating pre-signed URL", {
         error: err instanceof Error ? err.message : err,
         stack: err instanceof Error ? err.stack : undefined,
-        filename: req.body.filename,
       });
       res.status(500).json({ error: "Could not generate upload URL" });
     }

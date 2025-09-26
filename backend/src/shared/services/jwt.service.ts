@@ -7,8 +7,8 @@ export class jwtService {
   static async assign(payload: jwtPayload) {
     try {
       logger.info("Generating JWT token", {
-        userId: payload.userId,
         email: payload.email,
+        name: payload.name,
       });
 
       const token = jwt.sign(payload, config.jwt.privateKey, {
@@ -17,14 +17,14 @@ export class jwtService {
       });
 
       logger.info("JWT token generated successfully", {
-        userId: payload.userId,
+        email: payload.email,
       });
       return token;
     } catch (error) {
       logger.error("Error generating JWT token", {
         error: error instanceof Error ? error.message : error,
         stack: error instanceof Error ? error.stack : undefined,
-        userId: payload.userId,
+        email: payload.email,
       });
       throw error;
     }

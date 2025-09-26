@@ -36,7 +36,7 @@ model FileMetadata {
   fileId     String      @id @default(uuid()) @map("file_id")
   fileName   String      @map("file_name")
   mimeType   String      @map("mime_type")
-  size       Int
+  size       Int?
   s3Key      String      @unique @map("s3_key")
   status     FileStatus  @default(UPLOADING)
   userId     String      @map("user_id")
