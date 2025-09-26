@@ -2,10 +2,10 @@ import { Request, Response } from "express";
 import {
   generateDownloadUrl,
   generateUploadUrl,
-} from "../services/s3.service.js";
-import prisma from "../utils/prisma.util.js";
+} from "../../shared/services/s3.service.js";
+import prisma from "../../shared/utils/prisma.util.js";
 import { v4 as uuidv4 } from "uuid";
-import logger from "../utils/logger.util.js";
+import logger from "../../shared/utils/logger.util.js";
 
 export class fileController {
   static async getSignedUploadUrl(req: Request, res: Response) {

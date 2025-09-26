@@ -1,6 +1,6 @@
 import { ReceiveMessageCommand } from "@aws-sdk/client-sqs";
-import { config } from "../config/env.config.js";
-import logger from "../utils/logger.util.js";
+import { config } from "../shared/config/env.config.js";
+import logger from "../shared/utils/logger.util.js";
 import {
   sqs,
   testQueueAccess,
@@ -8,7 +8,7 @@ import {
   tryParseJson,
   deleteMessage,
   processS3Record,
-} from "../utils/sqs.util.js";
+} from "../shared/utils/sqs.util.js";
 
 const queueUrl = config.aws.sqs;
 

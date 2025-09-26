@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-import logger from "../utils/logger.util.js";
+import logger from "../utils/logger.util";
 
 dotenv.config();
 

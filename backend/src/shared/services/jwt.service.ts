@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import { jwtPayload } from "../types/jwt.type.js";
+import { jwtPayload } from "../types/common.types.js";
 import { config } from "../config/env.config.js";
 import logger from "../utils/logger.util.js";
 

@@ -1,0 +1,41 @@
+-- Enums
+CREATE TYPE file_status AS ENUM ('UPLOADING', 'UPLOADED', 'FAILED');
+CREATE TYPE chunk_status AS ENUM ('PENDING', 'COMPLETED', 'FAILED');
+
+-- User table
+CREATE TABLE "user" (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email TEXT UNIQUE NOT NULL,
+    name TEXT,
+    password_hash TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+-- Metadata table
+CREATE TABLE metadata (
+    file_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    file_name TEXT NOT NULL,
+    mime_type TEXT NOT NULL,
+    size INT NOT NULL,
+    s3_key TEXT UNIQUE NOT NULL,
+    status file_status DEFAULT 'UPLOADING',
+    user_id UUID NOT NULL REFERENCES "user"(id) ON DELETE CASCADE
+);
+
+-- Index for faster lookup by user
+CREATE INDEX idx_metadata_user_id ON metadata(user_id);
+
+-- Chunk table
+CREATE TABLE chunks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    file_id UUID NOT NULL REFERENCES metadata(file_id) ON DELETE CASCADE,
+    index INT NOT NULL,
+    size INT NOT NULL,
+    s3_key TEXT UNIQUE NOT NULL,
+    status chunk_status DEFAULT 'PENDING',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    CONSTRAINT uq_file_index UNIQUE(file_id, index)
+);
+
+-- Index for faster lookup by file
+CREATE INDEX idx_chunks_file_id ON chunks(file_id);

@@ -2,17 +2,6 @@ import { Request, Response, NextFunction } from "express";
 import { jwtService } from "../services/jwt.service.js";
 import logger from "../utils/logger.util.js";
 
-declare global {
-  namespace Express {
-    interface Request {
-      user?: {
-        userId: string;
-        email: string;
-      };
-    }
-  }
-}
-
 export const authenticateToken = async (
   req: Request,
   res: Response,
