@@ -26,12 +26,6 @@ configureBucketCORS();
 const server = http.createServer(app);
 const PORT = 50136;
 const storage = multer.memoryStorage();
-const upload = multer({ storage });
-
-app.post("/upload", upload.single("file"), (req, res) => {
-  console.log("File: ", req.file);
-  res.json({ message: "File received", filename: req.file?.originalname });
-});
 
 app.use((req: Request, _: Response, next) => {
   logger.info("Incoming request", {

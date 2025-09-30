@@ -5,7 +5,7 @@ import { ChunkStatus, FileStatus } from "@prisma/client";
 import { S3Uploader } from "../../shared/services/s3.service.js";
 import { config } from "../../shared/config/env.config.js";
 
-const activeUploads = new Map<string, S3Uploader>();
+const activeUploads = new Map<string, S3Uploader>(); // can use redis or sqlite
 
 export class fileController {
   static async uploadInit(req: Request, res: Response) {
@@ -76,7 +76,6 @@ export class fileController {
 
   static async getPresignedUrls(req: Request, res: Response) {
     try {
-      console.log("body: ", req.body);
       const { uploadId, numberOfParts } = req.body;
       const _numberOfParts = parseInt(numberOfParts, 10);
 
@@ -117,18 +116,18 @@ export class fileController {
 
   static async completeUpload(req: Request, res: Response) {
     try {
-      const { uploadId, parts } = req.body;
+      const { uploadId, parts, fileId } = req.body;
 
-      if (!uploadId || parts.length <= 0) {
+      if (!uploadId || parts.length <= 0 || !fileId) {
         logger.error(
-          "Missing fields in the request while etags comparision",
+          "Missing fields in the request while completing upload",
           req.body
         );
-        throw new Error(
-          "Missing fields in the request while etags comparision"
-        );
+        return res.status(400).json({
+          success: false,
+          error: "Missing required fields",
+        });
       }
-      logger.info("Fetched data from the request body", req.body);
 
       const uploader = activeUploads.get(uploadId);
       if (!uploader) {
@@ -137,7 +136,6 @@ export class fileController {
 
       const result = await uploader.completeUpload(parts);
       activeUploads.delete(uploadId);
-      logger.info("Deleted uploader from the DB", uploadId);
 
       if (!result.success) {
         return res
@@ -145,22 +143,34 @@ export class fileController {
           .json({ success: false, error: "ETags comparison failed" });
       }
 
+      await prisma.fileMetadata.update({
+        where: { fileId: fileId },
+        data: { status: FileStatus.UPLOADED },
+      });
+
       return res
         .status(200)
-        .json({ sucess: true, message: "Sucessfully uploaded file to S3" });
+        .json({ success: true, message: "Successfully uploaded file to S3" });
     } catch (err) {
-      logger.error("Error while comparing ETags", {
+      logger.error("Error while completing upload", {
         error: err instanceof Error ? err.message : err,
         stack: err instanceof Error ? err.stack : undefined,
-        user: req.body,
+        body: req.body,
       });
-      return res.status(500).json({ error: "Error while comparing ETags" });
+      return res.status(500).json({ error: "Error while completing upload" });
     }
   }
 
   static async recordChunkUpload(req: Request, res: Response) {
     try {
       const { file_id, chunk_index, size, etag, s3_key } = req.body;
+
+      if (!file_id || chunk_index === undefined || !size || !s3_key) {
+        return res.status(400).json({
+          success: false,
+          error: "Missing required fields",
+        });
+      }
 
       await prisma.chunk.create({
         data: {
@@ -174,9 +184,23 @@ export class fileController {
       });
 
       return res.status(200).json({ success: true });
-    } catch (err) {
-      logger.error("Error recording chunk upload", { error: err });
-      return res.status(500).json({ error: "Failed to record chunk" });
+    } catch (err: any) {
+      logger.error("Error recording chunk upload", {
+        error: err.message,
+        code: err.code,
+      });
+
+      if (err.code === "P2002") {
+        return res.status(409).json({
+          success: false,
+          error: "Chunk already recorded",
+        });
+      }
+
+      return res.status(500).json({
+        success: false,
+        error: "Failed to record chunk",
+      });
     }
   }
 }

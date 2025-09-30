@@ -44,7 +44,6 @@ class FileUploader {
 
       const init_res = await init.json();
       const uploadId = init_res.UploadId;
-      console.log("uploadId: ", uploadId);
       if (!init_res.success || !uploadId) {
         throw new Error("File upload initiation failed");
       }
@@ -108,7 +107,11 @@ class FileUploader {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ uploadId, parts: uploaded_parts }),
+          body: JSON.stringify({
+            uploadId,
+            parts: uploaded_parts,
+            fileId: this.fileId,
+          }),
         }
       );
 
