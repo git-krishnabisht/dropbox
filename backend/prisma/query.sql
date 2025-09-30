@@ -43,6 +43,7 @@ CREATE TABLE
     file_id UUID NOT NULL REFERENCES metadata (file_id) ON DELETE CASCADE,
     chunk_index INT NOT NULL,
     size INT NOT NULL CHECK (size >= 0),
+    checksum TEXT UNIQUE,
     s3_key TEXT UNIQUE NOT NULL,
     status chunk_status DEFAULT 'PENDING',
     created_at TIMESTAMP

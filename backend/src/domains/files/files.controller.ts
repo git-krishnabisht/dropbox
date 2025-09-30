@@ -1,94 +1,55 @@
 import { Request, Response } from "express";
-import {
-  generateDownloadUrl,
-  generateUploadUrl,
-} from "../../shared/services/s3.service.js";
 import prisma from "../../shared/utils/prisma.util.js";
 import { v4 as uuidv4 } from "uuid";
 import logger from "../../shared/utils/logger.util.js";
 import { FileStatus } from "@prisma/client";
+import { S3Uploader, UploadResult } from "../../shared/services/s3.service.js";
+import { config } from "../../shared/config/env.config.js";
+
+const activeUploads = new Map<string, S3Uploader>();
 
 export class fileController {
-  static async getSignedUploadUrl(req: Request, res: Response) {
+  static async uploadInit(req: Request, res: Response) {
     try {
-      logger.info("Get signed URL for file upload request received", {
-        fileName: req.body.md.fileName,
-        mimeType: req.body.md.mimeType,
-      });
-
-      const { md } = req.body;
-      if (!md.fileName || !md.mimeType || !md.userId) {
-        logger.warn("Missing required fields in get signed URL request", {
-          body: req.body,
-        });
-        return res
-          .status(400)
-          .json({ error: "filename and mimeType are required" });
-      }
-
-      const fileId = uuidv4();
-      const s3Key = `dropbox-test/${fileId}-${md.fileName}`;
-
-      logger.info("Creating metadata record", {
-        fileId,
-        s3Key,
-      });
-
+      const { file_id, file_name, file_type, file_size, user_id, s3_key } =
+        req.body;
+      const uploader = new S3Uploader(config.aws.bucket, s3_key as string);
       await prisma.fileMetadata.create({
         data: {
-          fileId,
-          fileName: md.fileName,
-          mimeType: md.mimeType,
-          size: null,
-          s3Key,
+          fileId: file_id,
+          fileName: file_name,
+          mimeType: file_type,
+          size: parseInt(file_size, 10),
+          s3Key: s3_key,
           status: FileStatus.UPLOADING,
-          userId: md.userId,
+          userId: user_id,
         },
       });
-
-      logger.info("Generating S3 upload URL", { fileId, s3Key });
-      const url = await generateUploadUrl(
-        s3Key as string,
-        md.mimeType as string
-      );
-
-      logger.info("Successfully generated upload URL", { fileId, s3Key });
-      res.json({ uploadUrl: url, fileId });
-    } catch (err) {
-      logger.error("Error generating pre-signed URL", {
-        error: err instanceof Error ? err.message : err,
-        stack: err instanceof Error ? err.stack : undefined,
-      });
-      res.status(500).json({ error: "Could not generate upload URL" });
-    }
+      const upload_id: string = await uploader.initUpload();
+      activeUploads.set(upload_id, uploader);
+      return res.json({ success: true, UploadId: upload_id });
+    } catch (error) {}
   }
 
-  static async getSignedDownloadUrl(req: Request, res: Response) {
+  static async getPresignedUrls(req: Request, res: Response) {
     try {
-      logger.info("Get signed URL for file download request received", {
-        s3Key: req.body.s3Key,
-      });
+      const { numberOfParts, uploadId } = {
+        ...req.body,
+        uploadId: Number(req.body.uploadId),
+      };
 
-      const { s3Key } = req.body;
-      if (!s3Key) {
-        logger.warn("Missing required fields in get signed URL request", {
-          body: req.body,
-        });
-        return res.status(400).json({ error: "s3Key string is required" });
+      const urls: string[] = [];
+      const uploader = activeUploads.get(uploadId);
+      for (let i = 1; i <= numberOfParts; ++i) {
+        const url: string = await uploader?.generatePreSignedUrls(i)!;
+        urls.push(url);
       }
 
-      logger.info("Generating S3 download URL", { s3Key });
-      const url = await generateDownloadUrl(s3Key as string);
+      return res.json({ presignedUrls: urls });
+    } catch (error) {}
+  }
 
-      logger.info("Successfully generated download URL", { s3Key });
-      res.json({ downloadUrl: url });
-    } catch (err) {
-      logger.error("Error generating pre-signed URL", {
-        error: err instanceof Error ? err.message : err,
-        stack: err instanceof Error ? err.stack : undefined,
-        s3Key: req.body.s3Key,
-      });
-      res.status(500).json({ error: "Could not generate download URL" });
-    }
+  static async completeUpload(arg0: string, completeUpload: any) {
+    throw new Error("Method not implemented.");
   }
 }

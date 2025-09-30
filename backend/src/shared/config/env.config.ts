@@ -8,7 +8,7 @@ const requiredEnvVars = [
   "AWS_SECRET_ACCESS_KEY",
   "AWS_REGION",
   "S3_BUCKET",
-  "SQS_QUEUE_URL", // Add this
+  "SQS_QUEUE_URL", 
   "PRIVATE_KEY",
   "PUBLIC_KEY",
 ];

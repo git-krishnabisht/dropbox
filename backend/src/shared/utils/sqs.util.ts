@@ -129,6 +129,7 @@ export async function deleteMessage(receiptHandle: string) {
 }
 
 export async function processS3Record(record: any, messageId?: string) {
+  console.log("record: ", record);
   const rawKey: string | undefined = record?.s3?.object?.key;
   if (!rawKey) {
     logger.warn("Record missing S3 object key", { record, messageId });
