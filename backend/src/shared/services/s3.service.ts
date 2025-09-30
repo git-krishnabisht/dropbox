@@ -59,32 +59,7 @@ export class S3Uploader {
     return await getSignedUrl(s3, command, { expiresIn: 3600 });
   }
 
-  async upload(
-    url: string,
-    partData: Buffer,
-    partNumber: number
-  ): Promise<UploadResult> {
-    const response = await fetch(url, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/octet-stream",
-      },
-      body: partData,
-    });
-
-    const etag: string | null =
-      response.headers.get("etag") || response.headers.get("ETag");
-    if (!etag) {
-      throw new Error("ETag not found in response headers");
-    }
-
-    return {
-      ETag: etag,
-      PartNumber: partNumber
-    };
-  }
-
-  async completeUpload(parts: UploadResult[]): Promise<void> {
+  async completeUpload(parts: UploadResult[]): Promise<{ success: Boolean }> {
     if (!this.uploadId) {
       throw new Error("Multipart upload not initiated");
     }
@@ -102,6 +77,7 @@ export class S3Uploader {
     });
 
     await s3.send(command);
+    return { success: true };
   }
 
   async abortUpload(): Promise<void> {
