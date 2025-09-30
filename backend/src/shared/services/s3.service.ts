@@ -4,6 +4,7 @@ import {
   UploadPartCommand,
   CompleteMultipartUploadCommand,
   AbortMultipartUploadCommand,
+  PutBucketCorsCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { config } from "../config/env.config.js";
@@ -16,6 +17,39 @@ const s3 = new S3Client({
     secretAccessKey: config.aws.secretAccessKey,
   },
 });
+
+export async function configureBucketCORS() {
+  try {
+    const corsConfiguration = {
+      CORSRules: [
+        {
+          AllowedHeaders: ["*"],
+          AllowedMethods: ["GET", "PUT", "POST", "DELETE", "HEAD"],
+          AllowedOrigins: ["http://localhost:5173", "http://localhost:4173"],
+          ExposeHeaders: ["ETag", "x-amz-request-id", "x-amz-version-id"],
+          MaxAgeSeconds: 3000,
+        },
+      ],
+    };
+
+    const command = new PutBucketCorsCommand({
+      Bucket: config.aws.bucket,
+      CORSConfiguration: corsConfiguration,
+    });
+
+    await s3.send(command);
+
+    logger.info("S3 bucket CORS configuration updated successfully", {
+      bucket: config.aws.bucket,
+    });
+  } catch (error) {
+    logger.error("Failed to configure S3 bucket CORS", {
+      error: error instanceof Error ? error.message : error,
+      bucket: config.aws.bucket,
+    });
+    throw error;
+  }
+}
 
 export interface UploadResult {
   ETag: string;

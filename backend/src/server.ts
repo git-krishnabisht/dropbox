@@ -9,6 +9,7 @@ import cookieParser from "cookie-parser";
 
 import "./shared/config/env.config.js";
 import multer from "multer";
+import { configureBucketCORS } from "./shared/services/s3.service.js";
 
 const app = express();
 app.use(express.json());
@@ -21,6 +22,7 @@ app.use(
     origin: ["http://localhost:5173", "http://localhost:4173"],
   })
 );
+configureBucketCORS();
 const server = http.createServer(app);
 const PORT = 50136;
 const storage = multer.memoryStorage();

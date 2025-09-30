@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import prisma from "../../shared/utils/prisma.util.js";
 import logger from "../../shared/utils/logger.util.js";
-import { FileStatus } from "@prisma/client";
+import { ChunkStatus, FileStatus } from "@prisma/client";
 import { S3Uploader } from "../../shared/services/s3.service.js";
 import { config } from "../../shared/config/env.config.js";
 
@@ -76,9 +76,11 @@ export class fileController {
 
   static async getPresignedUrls(req: Request, res: Response) {
     try {
-      const { numberOfParts, uploadId } = req.body;
+      console.log("body: ", req.body);
+      const { uploadId, numberOfParts } = req.body;
+      const _numberOfParts = parseInt(numberOfParts, 10);
 
-      if (!numberOfParts || !uploadId) {
+      if (!_numberOfParts || !uploadId) {
         logger.error(
           "Missing fields in the request while getting presigned urls",
           req.body
@@ -96,7 +98,7 @@ export class fileController {
       }
 
       logger.info("Generating Urls");
-      for (let i = 1; i <= numberOfParts; ++i) {
+      for (let i = 1; i <= _numberOfParts; ++i) {
         const url = await uploader.generatePreSignedUrls(i);
         urls.push(url);
       }
@@ -153,6 +155,28 @@ export class fileController {
         user: req.body,
       });
       return res.status(500).json({ error: "Error while comparing ETags" });
+    }
+  }
+
+  static async recordChunkUpload(req: Request, res: Response) {
+    try {
+      const { file_id, chunk_index, size, etag, s3_key } = req.body;
+
+      await prisma.chunk.create({
+        data: {
+          fileId: file_id,
+          chunkIndex: chunk_index,
+          size: size,
+          s3Key: s3_key,
+          checksum: etag,
+          status: ChunkStatus.COMPLETED,
+        },
+      });
+
+      return res.status(200).json({ success: true });
+    } catch (err) {
+      logger.error("Error recording chunk upload", { error: err });
+      return res.status(500).json({ error: "Failed to record chunk" });
     }
   }
 }

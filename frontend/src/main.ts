@@ -21,41 +21,45 @@ class FileUploader {
 
   async upload() {
     try {
-      const initFormData = new FormData();
       const s3Key: string = `dropbox-test/${this.fileId}-${this.file.name}`;
-      const userId: string = localStorage.getItem("userId")!;
+      const userId: string = "74f78ef2-28a2-462d-97e6-c60276e43f6b";
 
       if (!userId) {
         throw new Error("No UserId found in browser's localStorage");
       }
 
-      initFormData.append("file_id", this.fileId);
-      initFormData.append("file_name", this.file.name);
-      initFormData.append("file_type", this.file.type);
-      initFormData.append("file_size", this.file.size.toString());
-      initFormData.append("user_id", userId);
-      initFormData.append("s3_key", s3Key);
-
       const init = await fetch("http://localhost:50136/api/files/upload-init", {
         method: "POST",
-        body: initFormData,
+        // credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          file_id: this.fileId,
+          file_name: this.file.name,
+          file_type: this.file.type,
+          file_size: this.file.size.toString(),
+          user_id: userId,
+          s3_key: s3Key,
+        }),
       });
 
       const init_res = await init.json();
       const uploadId = init_res.UploadId;
+      console.log("uploadId: ", uploadId);
       if (!init_res.success || !uploadId) {
         throw new Error("File upload initiation failed");
       }
 
-      const psurlFormData = new FormData();
-      psurlFormData.append("uploadId", init_res.UploadId);
-      psurlFormData.append("numberOfParts", this.numParts.toString());
-
       const psurl = await fetch(
-        "http://localhost:50136/api/files/presigned-url",
+        "http://localhost:50136/api/files/presigned-urls",
         {
           method: "POST",
-          body: psurlFormData,
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            uploadId: uploadId,
+            numberOfParts: this.numParts.toString(),
+          }),
         }
       );
 
@@ -78,25 +82,40 @@ class FileUploader {
         if (!res.ok) throw new Error(`Error uploading chunk ${partNumber}`);
 
         const etag = res.headers.get("etag") || res.headers.get("ETag");
+
+        await fetch("http://localhost:50136/api/files/record-chunk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            file_id: this.fileId,
+            chunk_index: partNumber,
+            size: part.size,
+            etag: etag,
+            s3_key: s3Key,
+          }),
+        });
+
         uploaded_parts.push({
           ETag: etag,
           PartNumber: partNumber,
         });
-
-        const comp = await fetch(
-          "http://localhost:50136/api/files/complete-upload",
-          {
-            method: "POST",
-            body: JSON.stringify({ uploadId, parts: uploaded_parts }),
-          }
-        );
-
-        const comp_res = await comp.json();
-        if (!comp_res.success)
-          throw new Error("Failed while uploading the file");
-        console.log("Successfully uploaded the file");
-        return { success: true };
       }
+
+      const comp = await fetch(
+        "http://localhost:50136/api/files/complete-upload",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ uploadId, parts: uploaded_parts }),
+        }
+      );
+
+      const comp_res = await comp.json();
+      if (!comp_res.success) throw new Error("Failed while uploading the file");
+      console.log("Successfully uploaded the file");
+      return { success: true };
     } catch (err) {
       console.error("Unknown Error: ", err);
       return { success: false };
