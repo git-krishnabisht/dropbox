@@ -9,6 +9,11 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { config } from "../config/env.config.js";
 import logger from "../utils/logger.util.js";
+import {
+  GetPSURLResult,
+  InitUploadResult,
+  UploadResult,
+} from "../types/common.types.js";
 
 const s3 = new S3Client({
   region: config.aws.region,
@@ -51,22 +56,23 @@ export async function configureBucketCORS() {
   }
 }
 
-export interface UploadResult {
-  ETag: string;
-  PartNumber: number;
-}
-
 export class S3Uploader {
   private bucket: string;
   private key: string;
-  private uploadId: string | null = null;
 
   constructor(bucket: string, key: string) {
     this.bucket = bucket;
     this.key = key;
   }
 
-  async initUpload(): Promise<string> {
+  getBucket() {
+    return this.bucket;
+  }
+  getKey() {
+    return this.key;
+  }
+
+  async initUpload(): Promise<InitUploadResult> {
     const command = new CreateMultipartUploadCommand({
       Bucket: this.bucket,
       Key: this.key,
@@ -74,34 +80,36 @@ export class S3Uploader {
     });
 
     const res = await s3.send(command);
-    this.uploadId = res.UploadId!;
-    return this.uploadId;
+    if (!res.UploadId) return { success: false };
+    return { success: true, uploadId: res.UploadId };
   }
 
-  async generatePreSignedUrls(partNumber: number): Promise<string> {
-    if (!this.uploadId) {
-      throw new Error("Multipart upload not initiated");
-    }
-
+  async generatePreSignedUrls(
+    partNumber: number,
+    uploadId: string
+  ): Promise<GetPSURLResult> {
     const command = new UploadPartCommand({
       Bucket: this.bucket,
       Key: this.key,
       PartNumber: partNumber,
-      UploadId: this.uploadId,
+      UploadId: uploadId,
     });
 
-    return await getSignedUrl(s3, command, { expiresIn: 3600 });
+    const url: string = await getSignedUrl(s3, command, { expiresIn: 3600 });
+    if (!url || url === undefined) {
+      return { success: false };
+    }
+    return { success: true, psurl: url };
   }
 
-  async completeUpload(parts: UploadResult[]): Promise<{ success: Boolean }> {
-    if (!this.uploadId) {
-      throw new Error("Multipart upload not initiated");
-    }
-
+  async completeUpload(
+    parts: UploadResult[],
+    uploadId: string
+  ): Promise<{ success: Boolean }> {
     const command = new CompleteMultipartUploadCommand({
       Bucket: this.bucket,
       Key: this.key,
-      UploadId: this.uploadId,
+      UploadId: uploadId,
       MultipartUpload: {
         Parts: parts.map((part: UploadResult) => ({
           ETag: part.ETag,
@@ -114,15 +122,11 @@ export class S3Uploader {
     return { success: true };
   }
 
-  async abortUpload(): Promise<void> {
-    if (!this.uploadId) {
-      return;
-    }
-
+  async abortUpload(uploadId: string): Promise<void> {
     const command = new AbortMultipartUploadCommand({
       Bucket: this.bucket,
       Key: this.key,
-      UploadId: this.uploadId,
+      UploadId: uploadId,
     });
 
     await s3.send(command);

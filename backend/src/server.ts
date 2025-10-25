@@ -8,7 +8,7 @@ import { pollS3Events } from "./workers/sqs-polling.worker.js";
 import cookieParser from "cookie-parser";
 
 import "./shared/config/env.config.js";
-import multer from "multer";
+// import multer from "multer";
 import { configureBucketCORS } from "./shared/services/s3.service.js";
 
 const app = express();
@@ -25,7 +25,7 @@ app.use(
 configureBucketCORS();
 const server = http.createServer(app);
 const PORT = 50136;
-const storage = multer.memoryStorage();
+// const storage = multer.memoryStorage();
 
 app.use((req: Request, _: Response, next) => {
   logger.info("Incoming request", {
@@ -44,7 +44,7 @@ app.get("/api/health", (_: Request, res: Response) => {
   res.send({ server: "running", timestamp: new Date().toISOString() });
 });
 
-app.use((error: Error, req: Request, res: Response, next: any) => {
+app.use((error: Error, req: Request, res: Response) => {
   logger.error("Unhandled error", {
     error: error.message,
     stack: error.stack,

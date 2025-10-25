@@ -4,8 +4,8 @@ import logger from "../../shared/utils/logger.util.js";
 import { ChunkStatus, FileStatus } from "@prisma/client";
 import { S3Uploader } from "../../shared/services/s3.service.js";
 import { config } from "../../shared/config/env.config.js";
-
-const activeUploads = new Map<string, S3Uploader>(); // can use redis or sqlite
+import { InitUploadResult } from "../../shared/types/common.types.js";
+import { rd } from "../../shared/utils/redis.util.js";
 
 export class fileController {
   static async uploadInit(req: Request, res: Response) {
@@ -25,13 +25,12 @@ export class fileController {
           "Missing fields in the request while initiating the file upload",
           req.body
         );
-        return res
-          .status(404)
-          .json({ sucess: false, error: "Missing fileds in the request body" });
+        return res.status(404).json({
+          success: false,
+          error: "Missing fileds in the request body",
+        });
       }
       logger.info("Fetched data from the request body", req.body);
-
-      const uploader = new S3Uploader(config.aws.bucket, s3_key);
 
       await prisma.fileMetadata.create({
         data: {
@@ -49,20 +48,32 @@ export class fileController {
         req.body.file_id
       );
 
+      const uploader = new S3Uploader(config.aws.bucket, s3_key);
+
       logger.info("Initiating the file upload");
-      const upload_id: string = await uploader.initUpload();
-      activeUploads.set(upload_id, uploader);
+      const init: InitUploadResult = await uploader.initUpload();
+
+      if (init.success === false || init.uploadId === undefined) {
+        // delete the filemetadata created from the database and remove the uploader from the Map and abort the s3uplaod or retry based TTL expiry
+        return;
+      }
+
+      await rd.del(init.uploadId);
+      await rd.rpush(init.uploadId, uploader.getBucket());
+      await rd.rpush(init.uploadId, uploader.getKey());
+
       logger.info(
         "Initiation successfull, Updated the uploader with the upload_id in the redis DB",
-        upload_id
+        init.uploadId
       );
 
       return res.status(200).send({
         success: true,
-        UploadId: upload_id,
+        UploadId: init.uploadId,
         message: "File upload initiation successfull",
       });
     } catch (err) {
+      // delete the filemetadata created from the database and remove the uploader from the Map and abort the s3uplaod or retry based TTL expiry
       logger.error("Error Initiating the file upload", {
         error: err instanceof Error ? err.message : err,
         stack: err instanceof Error ? err.stack : undefined,
@@ -90,21 +101,35 @@ export class fileController {
       }
       logger.info("Fetched data from the request body", req.body);
 
-      const urls: string[] = [];
-      const uploader = activeUploads.get(uploadId);
-      if (!uploader) {
-        return res.status(404).json({ error: "Uploader miss" });
+      const vals: string[] = await rd.lrange(uploadId, 0, -1); // vals = [bucket: string, key: string]
+      if (vals.length !== 2) {
+        await rd.del(uploadId);
+        logger.error(`Value missing in cache for key ${uploadId}`);
+        return res
+          .status(404)
+          .json({ error: `Value missing in cache for key ${uploadId}` });
       }
+
+      const uploader = new S3Uploader(vals[0], vals[1]);
+      const urls: string[] = [];
 
       logger.info("Generating Urls");
       for (let i = 1; i <= _numberOfParts; ++i) {
-        const url = await uploader.generatePreSignedUrls(i);
-        urls.push(url);
+        const { success, psurl } = await uploader.generatePreSignedUrls(
+          i,
+          uploadId
+        );
+        if (success === false || psurl === undefined) {
+          // delete the filemetadata created from the database and remove the uploader from the Map and abort the s3uplaod or retry based TTL expiry
+          return;
+        }
+        urls.push(psurl);
       }
-      logger.info("Generated Urls successfully", { urls_number: urls.length });
 
+      logger.info("Generated Urls successfully", { urls_number: urls.length });
       return res.status(200).json({ presignedUrls: urls });
     } catch (err) {
+      // delete the filemetadata created from the database and remove the uploader from the Map and abort the s3uplaod or retry based TTL expiry
       logger.error("Error Generating Urls", {
         error: err instanceof Error ? err.message : err,
         stack: err instanceof Error ? err.stack : undefined,
@@ -128,14 +153,22 @@ export class fileController {
           error: "Missing required fields",
         });
       }
+      const vals: string[] = await rd.lrange(uploadId, 0, -1);
+      if (vals.length !== 2) {
+        await rd.del(uploadId);
+        logger.error(`Value missing in cache for key ${uploadId}`);
+        return res
+          .status(404)
+          .json({ error: `Value missing in cache for key ${uploadId}` });
+      }
 
-      const uploader = activeUploads.get(uploadId);
+      const uploader = new S3Uploader(vals[0], vals[1]);
       if (!uploader) {
         return res.status(404).json({ success: false, error: "Uploader miss" });
       }
 
-      const result = await uploader.completeUpload(parts);
-      activeUploads.delete(uploadId);
+      const result = await uploader.completeUpload(parts, uploadId);
+      await rd.del(uploadId);
 
       if (!result.success) {
         return res

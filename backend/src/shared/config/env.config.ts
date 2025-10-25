@@ -8,7 +8,7 @@ const requiredEnvVars = [
   "AWS_SECRET_ACCESS_KEY",
   "AWS_REGION",
   "S3_BUCKET",
-  "SQS_QUEUE_URL", 
+  "SQS_QUEUE_URL",
   "PRIVATE_KEY",
   "PUBLIC_KEY",
 ];
@@ -38,5 +38,8 @@ export const config = {
   },
   postgres: {
     dbURI: process.env.CLOUD_DB_URI!,
+  },
+  redis: {
+    rdURI: process.env.CLOUD_RD_URI!,
   },
 };

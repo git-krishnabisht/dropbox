@@ -13,6 +13,7 @@ class FileUploader {
     this.fileId = uuidv4();
   }
 
+  // file partitioning 5MB
   getPart(partNumber: number): Blob {
     const start = (partNumber - 1) * this.chunkSize;
     const end = Math.min(start + this.chunkSize, this.file.size);
@@ -22,12 +23,17 @@ class FileUploader {
   async upload() {
     try {
       const s3Key: string = `dropbox-test/${this.fileId}-${this.file.name}`;
-      const userId: string = "74f78ef2-28a2-462d-97e6-c60276e43f6b";
+      const userId: string = "8ec22669-d791-4ded-af6c-ff6d9541952c"; // hard coded private key stored in db
 
       if (!userId) {
         throw new Error("No UserId found in browser's localStorage");
       }
 
+      /**
+       * initiates the file upload and returns a uploadId for the file object from s3.
+       * makes a record of the metadata in DB
+       * returns an uploadId
+       */
       const init = await fetch("http://localhost:50136/api/files/upload-init", {
         method: "POST",
         // credentials: "include",
@@ -48,6 +54,10 @@ class FileUploader {
         throw new Error("File upload initiation failed");
       }
 
+      /**
+       * get numberOfParts s3 signed urls
+       * returns a list of signed urls of size numberOfParts
+       */
       const psurl = await fetch(
         "http://localhost:50136/api/files/presigned-urls",
         {
@@ -66,6 +76,9 @@ class FileUploader {
       const urls: string[] = psurl_res.presignedUrls;
       const uploaded_parts = [];
 
+      /**
+       * uploading file parts directly to s3
+       */
       for (let i = 0; i < this.numParts; ++i) {
         const partNumber = i + 1;
         const part: Blob = this.getPart(partNumber);
@@ -82,6 +95,9 @@ class FileUploader {
 
         const etag = res.headers.get("etag") || res.headers.get("ETag");
 
+        /**
+         * on successfull upload to s3, update that chunk's status to "UPLOADED"
+         */
         await fetch("http://localhost:50136/api/files/record-chunk", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -95,11 +111,14 @@ class FileUploader {
         });
 
         uploaded_parts.push({
-          ETag: etag,
+          ETag: etag, // checksum for chunk
           PartNumber: partNumber,
         });
       }
 
+      /**
+       * stiches together all the uploaded chunks into one file object and signifies that the file upload is successfull
+       */
       const comp = await fetch(
         "http://localhost:50136/api/files/complete-upload",
         {
@@ -116,7 +135,9 @@ class FileUploader {
       );
 
       const comp_res = await comp.json();
-      if (!comp_res.success) throw new Error("Failed while uploading the file");
+      if (!comp_res.success) {
+        throw new Error("Failed while uploading the file");
+      }
       console.log("Successfully uploaded the file");
       return { success: true };
     } catch (err) {
@@ -145,6 +166,7 @@ uploadBtn.addEventListener("click", async () => {
     if (!result!.success) {
       throw new Error("File upload failed");
     }
+    fileInput.value = "";
     console.log("File upload successfull");
   } catch (err) {
     console.error(err);
