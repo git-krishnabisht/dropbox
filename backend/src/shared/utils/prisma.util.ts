@@ -12,11 +12,21 @@ export async function deleteFileMetadata(id: string) {
   logger.info(`Deleted FileMetadata with file_id: ${id}`);
 }
 
+export async function deleteChunks(id: string) {
+  await prisma.chunk.deleteMany({
+    where: {
+      fileId: id,
+    },
+  });
+  logger.info(`Deleted chunks with file_id: ${id}`);
+}
+
 export async function updateStatusFileMetadata(id: string) {
   await prisma.fileMetadata.update({
     where: { fileId: id },
     data: { status: FileStatus.UPLOADED },
   });
+  logger.info(`Updated metadata status with file_id: ${id}`);
 }
 
 export async function createFileMetadata(
@@ -38,6 +48,7 @@ export async function createFileMetadata(
       userId: user_id,
     },
   });
+  logger.info(`Created metadata with file_id: ${file_id}`);
 }
 
 export async function createChunk(
@@ -57,4 +68,5 @@ export async function createChunk(
       status: ChunkStatus.COMPLETED,
     },
   });
+  logger.info(`Created chunk with file_id: ${file_id}`);
 }
