@@ -1,59 +1,60 @@
-import { PrismaClient } from "@prisma/client";
-import logger from "./logger.util.js";
+import prisma from "../config/prisma.config";
+import logger from "./logger.util";
+import { FileStatus, ChunkStatus } from "@prisma/client";
 
-const prisma = new PrismaClient({
-  log: [
-    {
-      emit: "event",
-      level: "query",
+export async function deleteFileMetadata(id: string) {
+  await prisma.fileMetadata.delete({
+    where: {
+      fileId: id,
     },
-    {
-      emit: "event",
-      level: "error",
+  });
+
+  logger.info(`Deleted FileMetadata with file_id: ${id}`);
+}
+
+export async function updateStatusFileMetadata(id: string) {
+  await prisma.fileMetadata.update({
+    where: { fileId: id },
+    data: { status: FileStatus.UPLOADED },
+  });
+}
+
+export async function createFileMetadata(
+  file_id: string,
+  file_name: string,
+  file_type: string,
+  file_size: string,
+  s3_key: string,
+  user_id: string
+) {
+  await prisma.fileMetadata.create({
+    data: {
+      fileId: file_id,
+      fileName: file_name,
+      mimeType: file_type,
+      size: parseInt(file_size, 10),
+      s3Key: s3_key,
+      status: FileStatus.UPLOADING,
+      userId: user_id,
     },
-    {
-      emit: "event",
-      level: "info",
+  });
+}
+
+export async function createChunk(
+  file_id: string,
+  chunk_index: number,
+  size: number,
+  s3_key: string,
+  etag: string
+) {
+  await prisma.chunk.create({
+    data: {
+      fileId: file_id,
+      chunkIndex: chunk_index,
+      size: size,
+      s3Key: s3_key,
+      checksum: etag,
+      status: ChunkStatus.COMPLETED,
     },
-    {
-      emit: "event",
-      level: "warn",
-    },
-  ],
-});
-
-prisma.$on("query", (e) => {
-  logger.debug("Prisma Query", {
-    query: e.query,
-    params: e.params,
-    duration: e.duration,
   });
-});
-
-prisma.$on("error", (e) => {
-  logger.error("Prisma Error", {
-    message: e.message,
-    target: e.target,
-  });
-});
-
-prisma.$on("info", (e) => {
-  logger.info("Prisma Info", {
-    message: e.message,
-    target: e.target,
-  });
-});
-
-prisma.$on("warn", (e) => {
-  logger.warn("Prisma Warning", {
-    message: e.message,
-    target: e.target,
-  });
-});
-
-process.on("beforeExit", async () => {
-  logger.info("Disconnecting from database");
-  await prisma.$disconnect();
-});
-
-export default prisma;
+}

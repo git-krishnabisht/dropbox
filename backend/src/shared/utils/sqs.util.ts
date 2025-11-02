@@ -5,7 +5,7 @@ import {
 } from "@aws-sdk/client-sqs";
 import { config } from "../config/env.config.js";
 import logger from "./logger.util.js";
-import prisma from "./prisma.util.js";
+import prisma from "../config/prisma.config.js";
 import { FileStatus } from "@prisma/client";
 
 const queueUrl = config.aws.sqs;
@@ -77,10 +77,6 @@ export function extractS3Records(messageBody: any): any[] {
 export function decodeS3Key(rawKey: string): string {
   const plusNormalized = rawKey.replace(/\+/g, "%20");
   try {
-    console.log(
-      "here the s3 Key found is: ",
-      decodeURIComponent(plusNormalized)
-    );
     return decodeURIComponent(plusNormalized);
   } catch {
     logger.warn("Failed to decode S3 key, using raw key", { rawKey });

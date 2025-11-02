@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import prisma from "../../shared/utils/prisma.util";
+import prisma from "../../shared/config/prisma.config";
 import logger from "../../shared/utils/logger.util";
 import bcrypt from "bcrypt";
 import { sts } from "../../shared/types/common.types";

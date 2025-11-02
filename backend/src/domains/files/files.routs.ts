@@ -6,8 +6,7 @@ const router = Router();
 
 // router.use(authenticateToken);
 
-router.post("/upload-init", fileController.uploadInit);
-router.post("/presigned-urls", fileController.getPresignedUrls);
+router.post("/get-urls", fileController.getUrls);
 router.post("/complete-upload", fileController.completeUpload);
 router.post("/record-chunk", fileController.recordChunkUpload);
 

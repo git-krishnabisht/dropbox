@@ -30,11 +30,10 @@ class FileUploader {
       }
 
       /**
-       * initiates the file upload and returns a uploadId for the file object from s3.
+       * initiates the file upload and returns URLs for uplaoding directly to s3
        * makes a record of the metadata in DB
-       * returns an uploadId
        */
-      const init = await fetch("http://localhost:50136/api/files/upload-init", {
+      const geturl = await fetch("http://localhost:50136/api/files/get-urls", {
         method: "POST",
         // credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -48,32 +47,9 @@ class FileUploader {
         }),
       });
 
-      const init_res = await init.json();
-      const uploadId = init_res.UploadId;
-      if (!init_res.success || !uploadId) {
-        throw new Error("File upload initiation failed");
-      }
-
-      /**
-       * get numberOfParts s3 signed urls
-       * returns a list of signed urls of size numberOfParts
-       */
-      const psurl = await fetch(
-        "http://localhost:50136/api/files/presigned-urls",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            uploadId: uploadId,
-            numberOfParts: this.numParts.toString(),
-          }),
-        }
-      );
-
-      const psurl_res = await psurl.json();
-      const urls: string[] = psurl_res.presignedUrls;
+      const geturl_res = await geturl.json();
+      const urls: string[] = geturl_res.presignedUrls;
+      const uploadId: string = geturl_res.uploadId;
       const uploaded_parts = [];
 
       /**
@@ -94,9 +70,11 @@ class FileUploader {
         if (!res.ok) throw new Error(`Error uploading chunk ${partNumber}`);
 
         const etag = res.headers.get("etag") || res.headers.get("ETag");
+        console.log("RES: \n", res, "\n");
+        console.log("INFO: \n", res.headers);
 
         /**
-         * on successfull upload to s3, update that chunk's status to "UPLOADED"
+         * on successfull upload to s3, update that chunk's status to "COMPLETED"
          */
         await fetch("http://localhost:50136/api/files/record-chunk", {
           method: "POST",
