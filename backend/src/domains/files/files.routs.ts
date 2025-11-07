@@ -6,8 +6,9 @@ const router = Router();
 
 // router.use(authenticateToken);
 
-router.post("/get-urls", fileController.getUrls);
+router.post("/get-upload-urls", fileController.getUploadUrls);
 router.post("/complete-upload", fileController.completeUpload);
 router.post("/record-chunk", fileController.recordChunkUpload);
+router.post("/get-download-url", fileController.getDownloadUrl);
 
 export { router as file_router };

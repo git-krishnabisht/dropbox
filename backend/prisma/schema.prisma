@@ -56,7 +56,7 @@ model Chunk {
   chunkIndex Int          @map("index") 
   size       Int
   s3Key      String       @map("s3_key")
-  checksum   String?      @unique 
+  checksum   String?      
   status     ChunkStatus  @default(PENDING)
   createdAt  DateTime     @default(now()) @map("created_at")
 

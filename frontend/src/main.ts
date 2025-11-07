@@ -107,7 +107,7 @@ class FileUploader {
 
   async upload(): Promise<{ success: boolean; error?: string }> {
     try {
-      const s3Key = `dropbox-test/${this.fileId}/${this.file.name}`;
+      const s3Key = `dropbox-test/e5234053-2236-43cc-b979-48ab5bc2a3bc/${this.file.name}`;
       const userId = this.getUserId();
 
       if (!userId) {
@@ -121,7 +121,7 @@ class FileUploader {
       });
 
       // Step 1: Initialize upload and get presigned URLs
-      const initResponse = await this.makeRequest("/files/get-urls", {
+      const initResponse = await this.makeRequest("/files/get-upload-urls", {
         file_id: this.fileId,
         file_name: this.file.name,
         file_type: this.file.type,
@@ -164,8 +164,7 @@ class FileUploader {
           );
         }
 
-        const etag =
-          s3Response.headers.get("etag") || s3Response.headers.get("ETag");
+        const etag = s3Response.headers.get("etag");
 
         if (!etag) {
           throw new Error(`No ETag received for chunk ${partNumber}`);
@@ -218,7 +217,7 @@ class FileUploader {
 
   private getUserId(): string | null {
     return (
-      localStorage.getItem("userId") || "8ec22669-d791-4ded-af6c-ff6d9541952c"
+      localStorage.getItem("userId") || "e5234053-2236-43cc-b979-48ab5bc2a3bc"
     );
   }
 }
@@ -304,6 +303,7 @@ class UploadUI {
         }`
       );
     } finally {
+      if (this.progressBar) this.progressBar.value = 0;
       this.setButtonsState(false);
       this.currentUploader = undefined;
     }

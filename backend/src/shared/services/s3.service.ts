@@ -5,6 +5,7 @@ import {
   CompleteMultipartUploadCommand,
   AbortMultipartUploadCommand,
   PutBucketCorsCommand,
+  GetObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { config } from "../config/env.config.js";
@@ -15,7 +16,7 @@ import {
   UploadResult,
 } from "../types/common.types.js";
 
-const s3 = new S3Client({
+export const s3 = new S3Client({
   region: config.aws.region,
   credentials: {
     accessKeyId: config.aws.accessKeyId,
@@ -84,7 +85,7 @@ export class S3Uploader {
     return { success: true, uploadId: res.UploadId };
   }
 
-  async generatePreSignedUrls(
+  async generateUploadUrls(
     partNumber: number,
     uploadId: string
   ): Promise<GetPSURLResult> {

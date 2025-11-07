@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import logger from "../../shared/utils/logger.util.js";
-import { S3Uploader } from "../../shared/services/s3.service.js";
+import { s3, S3Uploader } from "../../shared/services/s3.service.js";
 import { config } from "../../shared/config/env.config.js";
 import { InitUploadResult } from "../../shared/types/common.types.js";
 import { rd } from "../../shared/utils/redis.util.js";
@@ -11,6 +11,8 @@ import {
   updateStatusFileMetadata,
   deleteChunks,
 } from "../../shared/utils/prisma.util.js";
+import { GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
 const MAX_FILE_SIZE = 1 * 1024 * 1024 * 1024; // 1GB
@@ -97,7 +99,7 @@ export class fileController {
     }
   }
 
-  static async getUrls(req: Request, res: Response) {
+  static async getUploadUrls(req: Request, res: Response) {
     if (!fileController.validateGetUrlsRequest(req.body)) {
       logger.error("Missing or invalid fields in request", req.body);
       return res.status(400).json({
@@ -149,7 +151,7 @@ export class fileController {
       logger.info("Generating presigned URLs...");
 
       for (let i = 1; i <= numParts; i++) {
-        const { success, psurl } = await uploader.generatePreSignedUrls(
+        const { success, psurl } = await uploader.generateUploadUrls(
           i,
           uploadId
         );
@@ -325,6 +327,47 @@ export class fileController {
       return res.status(500).json({
         success: false,
         error: "Error recording chunk upload",
+      });
+    }
+  }
+
+  static async getDownloadUrl(req: Request, res: Response) {
+    const { s3_key } = req.body;
+    try {
+      if (!s3_key) {
+        logger.error("Data missing in the request body", req.body);
+        return res.status(400).json({
+          success: false,
+          error: "Data missing in the request body",
+        });
+      }
+
+      const command = new GetObjectCommand({
+        Bucket: config.aws.bucket,
+        Key: s3_key,
+      });
+
+      const url = await getSignedUrl(s3, command, { expiresIn: 3600 });
+
+      if (!url) {
+        logger.error("Unable to fetch download URL");
+        throw new Error("Unable to fetch download URL");
+      }
+
+      return res.status(200).json({
+        success: true,
+        url: url,
+      });
+    } catch (err) {
+      logger.error("Error fetching download URL", {
+        error: err instanceof Error ? err.message : String(err),
+        code: err instanceof Error && "code" in err ? err.code : undefined,
+        s3_key: s3_key,
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: "Error fetching download URL",
       });
     }
   }
