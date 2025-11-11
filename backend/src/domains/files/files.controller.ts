@@ -5,11 +5,10 @@ import { config } from "../../shared/config/env.config.js";
 import { InitUploadResult } from "../../shared/types/common.types.js";
 import { rd } from "../../shared/utils/redis.util.js";
 import {
-  createChunk,
   createFileMetadata,
-  deleteFileMetadata,
-  updateStatusFileMetadata,
-  deleteChunks,
+  recordUploadedMetadata,
+  updateChunk,
+  createPendingChunk,
 } from "../../shared/utils/prisma.util.js";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -54,17 +53,6 @@ export class fileController {
     );
   }
 
-  private static validateCompleteUploadRequest(
-    body: any
-  ): body is CompleteUploadRequestBody {
-    return (
-      body.uploadId &&
-      Array.isArray(body.parts) &&
-      body.parts.length > 0 &&
-      body.fileId
-    );
-  }
-
   private static validateRecordChunkRequest(
     body: any
   ): body is RecordChunkRequestBody {
@@ -78,25 +66,15 @@ export class fileController {
     );
   }
 
-  private static async cleanupFailedUpload(
-    fileId: string,
-    uploadId: string | null,
-    uploader: S3Uploader
-  ): Promise<void> {
-    try {
-      await deleteFileMetadata(fileId);
-      await deleteChunks(fileId);
-      if (uploadId) {
-        await uploader.abortUpload(uploadId);
-        await rd.del(uploadId);
-      }
-    } catch (err) {
-      logger.error("Error during cleanup", {
-        error: err instanceof Error ? err.message : String(err),
-        fileId,
-        uploadId,
-      });
-    }
+  private static validateCompleteUploadRequest(
+    body: any
+  ): body is CompleteUploadRequestBody {
+    return (
+      body.uploadId &&
+      Array.isArray(body.parts) &&
+      body.parts.length > 0 &&
+      body.fileId
+    );
   }
 
   static async getUploadUrls(req: Request, res: Response) {
@@ -114,27 +92,27 @@ export class fileController {
     const uploader = new S3Uploader(config.aws.bucket, s3_key);
     let uploadId: string | null = null;
 
+    const fileSizeBytes = parseInt(file_size, 10);
+    if (isNaN(fileSizeBytes) || fileSizeBytes <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid file size",
+      });
+    }
+
+    if (fileSizeBytes > MAX_FILE_SIZE) {
+      return res.status(400).json({
+        success: false,
+        error: `File size exceeds maximum allowed size of ${
+          MAX_FILE_SIZE / (1024 * 1024 * 1024)
+        }GB`,
+      });
+    }
+
+    logger.info("Fetched data from request body", req.body);
+
+    logger.info("Initiating file upload");
     try {
-      const fileSizeBytes = parseInt(file_size, 10);
-      if (isNaN(fileSizeBytes) || fileSizeBytes <= 0) {
-        return res.status(400).json({
-          success: false,
-          error: "Invalid file size",
-        });
-      }
-
-      if (fileSizeBytes > MAX_FILE_SIZE) {
-        return res.status(400).json({
-          success: false,
-          error: `File size exceeds maximum allowed size of ${
-            MAX_FILE_SIZE / (1024 * 1024 * 1024)
-          }GB`,
-        });
-      }
-
-      logger.info("Fetched data from request body", req.body);
-
-      logger.info("Initiating file upload");
       const init: InitUploadResult = await uploader.initUpload();
 
       if (!init.success || !init.uploadId) {
@@ -163,12 +141,14 @@ export class fileController {
 
         urls.push(psurl);
       }
+      console.log("debug point 1");
 
       if (urls.length !== numParts) {
         throw new Error(
           `URL count mismatch: expected ${numParts}, got ${urls.length}`
         );
       }
+      console.log("debug point 2");
 
       // Store upload metadata in Redis with TTL
       await rd.set(
@@ -180,6 +160,7 @@ export class fileController {
         "EX",
         REDIS_TTL
       );
+      console.log("debug point 3");
 
       await createFileMetadata(
         file_id,
@@ -189,6 +170,15 @@ export class fileController {
         s3_key,
         user_id
       );
+
+      console.log("debug point 4");
+      for (let i = 0; i < numParts; i++) {
+        const isLast = i === numParts - 1;
+        const chunkSize = isLast ? fileSizeBytes - i * CHUNK_SIZE : CHUNK_SIZE;
+
+        await createPendingChunk(file_id, i, chunkSize, s3_key);
+      }
+      console.log("debug point 5");
 
       logger.info("Generated S3 presigned URLs successfully", {
         fileId: file_id,
@@ -207,12 +197,44 @@ export class fileController {
         stack: err instanceof Error ? err.stack : undefined,
         fileId: file_id,
       });
-
-      await fileController.cleanupFailedUpload(file_id, uploadId, uploader);
-
       return res.status(500).json({
         success: false,
         error: "Error generating S3 presigned URLs",
+      });
+    }
+  }
+
+  static async recordChunkUpload(req: Request, res: Response) {
+    if (!fileController.validateRecordChunkRequest(req.body)) {
+      logger.error("Missing or invalid fields in request", req.body);
+      return res.status(400).json({
+        success: false,
+        error: "Missing or invalid required fields",
+      });
+    }
+
+    const { file_id, chunk_index, etag } = req.body;
+
+    try {
+      await updateChunk(file_id, chunk_index, etag);
+
+      logger.info("Chunk recorded successfully", {
+        fileId: file_id,
+        chunkIndex: chunk_index,
+      });
+
+      return res.status(200).json({ success: true });
+    } catch (err) {
+      logger.error("Error recording chunk upload", {
+        error: err instanceof Error ? err.message : String(err),
+        code: err instanceof Error && "code" in err ? err.code : undefined,
+        fileId: file_id,
+        chunkIndex: chunk_index,
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: "Error recording chunk upload",
       });
     }
   }
@@ -222,6 +244,7 @@ export class fileController {
       logger.error("Missing or invalid fields in request", req.body);
       return res.status(400).json({
         success: false,
+        errorType: "validation error",
         error: "Missing or invalid required fields",
       });
     }
@@ -237,23 +260,11 @@ export class fileController {
           error: "Upload session not found or expired",
         });
       }
-
       const { bucket, key } = JSON.parse(cachedData);
       const uploader = new S3Uploader(bucket, key);
+      await uploader.completeUpload(parts, uploadId);
 
-      const result = await uploader.completeUpload(parts, uploadId);
-
-      if (!result.success) {
-        logger.error("Upload completion failed", { uploadId, fileId });
-        await uploader.abortUpload(uploadId);
-        await rd.del(uploadId);
-        return res.status(400).json({
-          success: false,
-          error: "Failed to complete upload: ETags comparison failed",
-        });
-      }
-
-      await updateStatusFileMetadata(fileId);
+      await recordUploadedMetadata(fileId);
       await rd.del(uploadId);
 
       logger.info("File uploaded successfully", { fileId, uploadId });
@@ -270,78 +281,22 @@ export class fileController {
         fileId,
       });
 
-      try {
-        const cachedData = await rd.get(uploadId);
-        if (cachedData) {
-          const { bucket, key } = JSON.parse(cachedData);
-          const uploader = new S3Uploader(bucket, key);
-          await uploader.abortUpload(uploadId);
-        }
-        await rd.del(uploadId);
-      } catch (cleanupErr) {
-        logger.error("Error during upload completion cleanup", {
-          error:
-            cleanupErr instanceof Error
-              ? cleanupErr.message
-              : String(cleanupErr),
-        });
-      }
-
       return res.status(500).json({
         success: false,
         error: "Error while completing upload",
       });
     }
   }
-
-  static async recordChunkUpload(req: Request, res: Response) {
-    if (!fileController.validateRecordChunkRequest(req.body)) {
-      logger.error("Missing or invalid fields in request", req.body);
-      return res.status(400).json({
-        success: false,
-        error: "Missing or invalid required fields",
-      });
-    }
-
-    const { file_id, chunk_index, size, etag, s3_key } = req.body;
-
-    try {
-      await createChunk(file_id, chunk_index, parseInt(size, 10), s3_key, etag);
-
-      logger.info("Chunk recorded successfully", {
-        fileId: file_id,
-        chunkIndex: chunk_index,
-      });
-
-      return res.status(200).json({ success: true });
-    } catch (err) {
-      deleteFileMetadata(file_id);
-      deleteChunks(file_id);
-      logger.error("Error recording chunk upload", {
-        error: err instanceof Error ? err.message : String(err),
-        code: err instanceof Error && "code" in err ? err.code : undefined,
-        fileId: file_id,
-        chunkIndex: chunk_index,
-      });
-
-      return res.status(500).json({
-        success: false,
-        error: "Error recording chunk upload",
-      });
-    }
-  }
-
   static async getDownloadUrl(req: Request, res: Response) {
     const { s3_key } = req.body;
+    if (!s3_key) {
+      logger.error("Data missing in the request body", req.body);
+      return res.status(400).json({
+        success: false,
+        error: "Data missing in the request body",
+      });
+    }
     try {
-      if (!s3_key) {
-        logger.error("Data missing in the request body", req.body);
-        return res.status(400).json({
-          success: false,
-          error: "Data missing in the request body",
-        });
-      }
-
       const command = new GetObjectCommand({
         Bucket: config.aws.bucket,
         Key: s3_key,

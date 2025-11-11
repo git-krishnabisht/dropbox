@@ -21,10 +21,18 @@ export async function deleteChunks(id: string) {
   logger.info(`Deleted chunks with file_id: ${id}`);
 }
 
-export async function updateStatusFileMetadata(id: string) {
+export async function recordUploadedMetadata(id: string) {
   await prisma.fileMetadata.update({
     where: { fileId: id },
     data: { status: FileStatus.UPLOADED },
+  });
+  logger.info(`Updated metadata status with file_id: ${id}`);
+}
+
+export async function recordFailedMetadata(id: string) {
+  await prisma.fileMetadata.update({
+    where: { fileId: id },
+    data: { status: FileStatus.FAILED },
   });
   logger.info(`Updated metadata status with file_id: ${id}`);
 }
@@ -51,12 +59,12 @@ export async function createFileMetadata(
   logger.info(`Created metadata with file_id: ${file_id}`);
 }
 
-export async function createChunk(
+export async function createPendingChunk(
   file_id: string,
   chunk_index: number,
   size: number,
   s3_key: string,
-  etag: string
+  etag?: string
 ) {
   await prisma.chunk.create({
     data: {
@@ -65,8 +73,58 @@ export async function createChunk(
       size: size,
       s3Key: s3_key,
       checksum: etag,
+    },
+  });
+  logger.info(`Created chunk at index: ${chunk_index}, with PENDING status`);
+}
+
+export async function updateChunk(
+  file_id: string,
+  chunk_index: number,
+  etag: string
+) {
+  await prisma.chunk.update({
+    where: {
+      fileId_chunkIndex: {
+        fileId: file_id,
+        chunkIndex: chunk_index,
+      },
+    },
+    data: {
+      checksum: etag,
       status: ChunkStatus.COMPLETED,
     },
   });
-  logger.info(`Created chunk with file_id: ${file_id}`);
+  logger.info(`Updated chunk at index: ${chunk_index}, with COMPLETED status`);
+}
+
+export async function recordFailedChunkOne(
+  file_id: string,
+  chunk_index: number
+) {
+  await prisma.chunk.update({
+    where: {
+      fileId_chunkIndex: {
+        fileId: file_id,
+        chunkIndex: chunk_index,
+      },
+    },
+    data: {
+      status: ChunkStatus.FAILED,
+    },
+  });
+  logger.info(`Updated chunk at index: ${chunk_index}, with FAILED status`);
+}
+
+export async function recordFailedChunkMany(file_id: string) {
+  await prisma.chunk.updateMany({
+    where: {
+      fileId: file_id,
+    },
+    data: {
+      status: ChunkStatus.FAILED,
+    },
+  });
+
+  logger.info(`Update all chunks status to FAILED with file_id: ${file_id}`);
 }

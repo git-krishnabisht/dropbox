@@ -53,14 +53,14 @@ model FileMetadata {
 model Chunk {
   id         String       @id @default(uuid())
   fileId     String       @map("file_id")
-  chunkIndex Int          @map("index") 
+  chunkIndex Int          @unique @map("index") 
   size       Int
   s3Key      String       @map("s3_key")
   checksum   String?      
   status     ChunkStatus  @default(PENDING)
   createdAt  DateTime     @default(now()) @map("created_at")
 
-  file FileMetadata @relation(fields: [fileId], references: [fileId])
+  file FileMetadata @relation(fields: [fileId], references: [fileId], onDelete: Cascade)
 
   @@map("chunks")
   @@unique([fileId, chunkIndex])

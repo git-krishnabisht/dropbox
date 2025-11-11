@@ -144,14 +144,13 @@ class FileUploader {
       const uploadedParts: UploadPart[] = [];
 
       // Step 2: Upload chunks to S3
-      for (let i = 0; i < this.numParts; i++) {
-        const partNumber = i + 1;
-        const chunk = this.getPart(partNumber);
+      for (let i = 1; i <= this.numParts; i++) {
+        const chunk = this.getPart(i);
 
-        console.log(`Uploading chunk ${partNumber}/${this.numParts}...`);
+        console.log(`Uploading chunk ${i}/${this.numParts}...`);
 
         // Upload chunk to S3
-        const s3Response = await fetch(presignedUrls[i], {
+        const s3Response = await fetch(presignedUrls[i - 1], {
           method: "PUT",
           body: chunk,
           headers: { "Content-Type": "application/octet-stream" },
@@ -160,20 +159,20 @@ class FileUploader {
 
         if (!s3Response.ok) {
           throw new Error(
-            `Failed to upload chunk ${partNumber}: ${s3Response.statusText}`
+            `Failed to upload chunk ${i}: ${s3Response.statusText}`
           );
         }
 
         const etag = s3Response.headers.get("etag");
 
         if (!etag) {
-          throw new Error(`No ETag received for chunk ${partNumber}`);
+          throw new Error(`No ETag received for chunk ${i}`);
         }
 
         // Record chunk in database
         await this.makeRequest("/files/record-chunk", {
           file_id: this.fileId,
-          chunk_index: partNumber - 1, // 0-indexed in database
+          chunk_index: i - 1, // 0-indexed in database
           size: chunk.size.toString(),
           etag: etag.replace(/"/g, ""), // Remove quotes from ETag
           s3_key: s3Key,
@@ -181,10 +180,10 @@ class FileUploader {
 
         uploadedParts.push({
           ETag: etag,
-          PartNumber: partNumber,
+          PartNumber: i,
         });
 
-        this.updateProgress(partNumber);
+        this.updateProgress(i);
       }
 
       console.log("All chunks uploaded, completing upload...");
