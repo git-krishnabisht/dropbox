@@ -2,14 +2,9 @@ import type { Request, Response } from "express";
 import logger from "../../shared/utils/logger.util.js";
 import { s3, S3Uploader } from "../../shared/services/s3.service.js";
 import { config } from "../../shared/config/env.config.js";
-import { InitUploadResult } from "../../shared/types/common.types.js";
+import { InitUploadResult } from "../../types/common.types.js";
 import { rd } from "../../shared/utils/redis.util.js";
-import {
-  createFileMetadata,
-  recordUploadedMetadata,
-  updateChunk,
-  createPendingChunk,
-} from "../../shared/utils/prisma.util.js";
+import { PrismaUtil } from "../../shared/utils/prisma.util.js";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -162,7 +157,7 @@ export class fileController {
       );
       console.log("debug point 3");
 
-      await createFileMetadata(
+      await PrismaUtil.createFileMetadata(
         file_id,
         file_name,
         file_type,
@@ -176,7 +171,7 @@ export class fileController {
         const isLast = i === numParts - 1;
         const chunkSize = isLast ? fileSizeBytes - i * CHUNK_SIZE : CHUNK_SIZE;
 
-        await createPendingChunk(file_id, i, chunkSize, s3_key);
+        await PrismaUtil.createPendingChunk(file_id, i, chunkSize, s3_key);
       }
       console.log("debug point 5");
 
@@ -216,7 +211,7 @@ export class fileController {
     const { file_id, chunk_index, etag } = req.body;
 
     try {
-      await updateChunk(file_id, chunk_index, etag);
+      await PrismaUtil.updateChunk(file_id, chunk_index, etag);
 
       logger.info("Chunk recorded successfully", {
         fileId: file_id,
@@ -264,7 +259,7 @@ export class fileController {
       const uploader = new S3Uploader(bucket, key);
       await uploader.completeUpload(parts, uploadId);
 
-      await recordUploadedMetadata(fileId);
+      await PrismaUtil.recordUploadedMetadata(fileId);
       await rd.del(uploadId);
 
       logger.info("File uploaded successfully", { fileId, uploadId });

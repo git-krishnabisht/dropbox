@@ -5,7 +5,6 @@ import {
   CompleteMultipartUploadCommand,
   AbortMultipartUploadCommand,
   PutBucketCorsCommand,
-  GetObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { config } from "../config/env.config.js";
@@ -14,7 +13,7 @@ import {
   GetPSURLResult,
   InitUploadResult,
   UploadResult,
-} from "../types/common.types.js";
+} from "../../types/common.types.js";
 
 export const s3 = new S3Client({
   region: config.aws.region,

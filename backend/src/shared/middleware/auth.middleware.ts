@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from "express";
 import { jwtService } from "../services/jwt.service.js";
 import logger from "../utils/logger.util.js";
+import { ValidationUtil } from "../utils/validate.util.js";
+import { PrismaUtil } from "../utils/prisma.util.js";
 
 export const authenticateToken = async (
   req: Request,
@@ -8,33 +10,26 @@ export const authenticateToken = async (
   next: NextFunction
 ) => {
   try {
-    const token = req.cookies?.authToken;
+    const token = req.cookies.access_token;
 
     if (!token) {
-      logger.warn("Authentication failed: No token provided", {
-        url: req.url,
-        method: req.method,
-      });
+      logger.error("No access token found in cookies");
       return res.status(401).json({ error: "Access token required" });
     }
 
-    const decoded = (await jwtService.verify(token)) as {
-      userId: number;
-      email: string;
-    };
-    req.user = decoded;
+    const decoded = await jwtService.verify(token);
 
-    logger.info("User authenticated successfully", {
-      userId: decoded.userId,
-      email: decoded.email,
-    });
+    const jwt_validate = ValidationUtil.validateJWTPayload(decoded);
+    if (jwt_validate.length > 0) {
+      throw new Error(`Missinig data in the access token ${jwt_validate}`);
+    }
+
+    await PrismaUtil.userExists(decoded.email);
+
+    req.jwtPayload = decoded;
+
     next();
-  } catch (error) {
-    logger.error("Authentication failed: Invalid token", {
-      error: error instanceof Error ? error.message : error,
-      url: req.url,
-      method: req.method,
-    });
-    return res.status(403).json({ error: "Invalid or expired token" });
+  } catch (err) {
+    next(`Unauathroized: ${err}`);
   }
 };

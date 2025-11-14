@@ -21,48 +21,51 @@ enum ChunkStatus {
 }
 
 model User {
-  id           String     @id @default(uuid())
-  email        String     @unique
-  name         String?
-  passwordHash String     @map("password_hash")
-  createdAt    DateTime   @default(now()) @map("created_at")
+  id               String   @id @default(uuid())
+  email            String   @unique
+  name             String?
+  refreshTokenHash String
+  rtAssignmentDate DateTime
+  rtExpiresAt      DateTime
+  passwordHash     String   @map("password_hash")
+  createdAt        DateTime @default(now()) @map("created_at")
 
-  files        FileMetadata[] @relation("UserFiles")
+  files FileMetadata[] @relation("UserFiles")
 
-  @@map("users") 
+  @@map("users")
 }
 
 model FileMetadata {
-  fileId     String      @id @default(uuid()) @map("file_id")
-  fileName   String      @map("file_name")
-  mimeType   String      @map("mime_type")
-  size       Int?
-  s3Key      String      @unique @map("s3_key")
-  status     FileStatus  @default(UPLOADING)
-  userId     String      @map("user_id")
+  fileId   String     @id @default(uuid()) @map("file_id")
+  fileName String     @map("file_name")
+  mimeType String     @map("mime_type")
+  size     Int?
+  s3Key    String     @unique @map("s3_key")
+  status   FileStatus @default(UPLOADING)
+  userId   String     @map("user_id")
 
-  user   User     @relation("UserFiles", fields: [userId], references: [id])
+  user   User    @relation("UserFiles", fields: [userId], references: [id])
   chunks Chunk[]
 
   createdAt DateTime @default(now()) @map("created_at")
 
-  @@map("metadata")
   @@index([userId])
+  @@map("metadata")
 }
 
 model Chunk {
-  id         String       @id @default(uuid())
-  fileId     String       @map("file_id")
-  chunkIndex Int          @unique @map("index") 
+  id         String      @id @default(uuid())
+  fileId     String      @map("file_id")
+  chunkIndex Int         @unique @map("index")
   size       Int
-  s3Key      String       @map("s3_key")
-  checksum   String?      
-  status     ChunkStatus  @default(PENDING)
-  createdAt  DateTime     @default(now()) @map("created_at")
+  s3Key      String      @map("s3_key")
+  checksum   String?
+  status     ChunkStatus @default(PENDING)
+  createdAt  DateTime    @default(now()) @map("created_at")
 
   file FileMetadata @relation(fields: [fileId], references: [fileId], onDelete: Cascade)
 
-  @@map("chunks")
   @@unique([fileId, chunkIndex])
   @@index([fileId])
+  @@map("chunks")
 }

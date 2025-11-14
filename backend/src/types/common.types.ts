@@ -3,7 +3,7 @@ export interface jwtPayload {
   name: string;
 }
 
-export interface user {
+export interface User {
   email: string;
   name?: string;
   password: string;

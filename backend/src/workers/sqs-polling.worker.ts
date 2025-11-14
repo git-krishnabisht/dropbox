@@ -1,16 +1,12 @@
 import { ReceiveMessageCommand } from "@aws-sdk/client-sqs";
 import { config } from "../shared/config/env.config.js";
 import logger from "../shared/utils/logger.util.js";
-import {
-  sqs,
-  testQueueAccess,
-  extractS3Records,
-  tryParseJson,
-  deleteMessage,
-  processS3Record,
-} from "../shared/utils/sqs.util.js";
+import { sqs } from "../shared/utils/sqs.util.js";
 
 const queueUrl = config.aws.sqs;
+import { SqsUtil } from "../shared/utils/sqs.util.js";
+
+// Need Thorough Error handling
 
 // 1 - polls for any sqs event, ex: ObjectCreated:Put
 async function pollS3Events() {
@@ -20,7 +16,7 @@ async function pollS3Events() {
   }
 
   // 2 - Checks if the server is authorized to access SQS
-  const hasAccess = await testQueueAccess();
+  const hasAccess = await SqsUtil.testQueueAccess();
   if (!hasAccess) {
     logger.error(
       "Cannot access SQS queue. Check your credentials, queue URL, and IAM permissions."
@@ -54,12 +50,12 @@ async function pollS3Events() {
       for (const msg of Messages) {
         logger.info("Processing SQS message", {
           messageId: msg.MessageId,
-          body: tryParseJson(msg.Body),
+          body: SqsUtil.tryParseJson(msg.Body),
         });
 
         try {
           // 6 - De-serializes the JSON body
-          const parsedBody = tryParseJson<any>(msg.Body!);
+          const parsedBody = SqsUtil.tryParseJson<any>(msg.Body!);
 
           if (!parsedBody) {
             logger.warn("Failed to parse SQS message body", {
@@ -68,16 +64,16 @@ async function pollS3Events() {
             });
 
             // if De-serialization fails, then delete that(failed) message from the SQS
-            await deleteMessage(msg.ReceiptHandle!);
+            await SqsUtil.deleteMessage(msg.ReceiptHandle!);
             continue;
           }
 
           // 7 - Extract Records: [] from the message
-          const records = extractS3Records(parsedBody);
+          const records = SqsUtil.extractS3Records(parsedBody);
           if (!records || records.length === 0) {
             if (parsedBody?.Event === "s3:TestEvent") {
               logger.info("S3 test event processed successfully");
-              await deleteMessage(msg.ReceiptHandle!);
+              await SqsUtil.deleteMessage(msg.ReceiptHandle!);
               continue;
             }
 
@@ -89,7 +85,7 @@ async function pollS3Events() {
             });
 
             // if no Records: [] found, then delete that message from the SQS
-            await deleteMessage(msg.ReceiptHandle!);
+            await SqsUtil.deleteMessage(msg.ReceiptHandle!);
             continue;
           }
 
@@ -100,11 +96,11 @@ async function pollS3Events() {
 
           for (const record of records) {
             // Process Records: []
-            await processS3Record(record, msg.MessageId);
+            await SqsUtil.processS3Record(record, msg.MessageId);
           }
 
           // Pop from the queue
-          await deleteMessage(msg.ReceiptHandle!);
+          await SqsUtil.deleteMessage(msg.ReceiptHandle!);
           logger.info("Successfully processed and deleted SQS message", {
             messageId: msg.MessageId,
           });

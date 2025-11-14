@@ -1,6 +1,6 @@
 import http from "http";
 import cors from "cors";
-import express, { Request, Response } from "express";
+import express, { NextFunction, Request, Response } from "express";
 import logger from "./shared/utils/logger.util.js";
 import { auth_router } from "./domains/auth/auth.routes.js";
 import { file_router } from "./domains/files/files.routs.js";
@@ -10,6 +10,7 @@ import cookieParser from "cookie-parser";
 import "./shared/config/env.config.js";
 // import multer from "multer";
 import { configureBucketCORS } from "./shared/services/s3.service.js";
+import { authenticateToken } from "./shared/middleware/auth.middleware.js";
 
 const app = express();
 app.use(express.json());
@@ -44,7 +45,7 @@ app.get("/api/health", (_: Request, res: Response) => {
   res.send({ server: "running", timestamp: new Date().toISOString() });
 });
 
-app.use((error: Error, req: Request, res: Response) => {
+app.use((error: Error, req: Request, res: Response, next: NextFunction) => {
   logger.error("Unhandled error", {
     error: error.message,
     stack: error.stack,
